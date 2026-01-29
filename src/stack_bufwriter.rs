@@ -1,6 +1,6 @@
-use std::io::{Error, ErrorKind, IoSlice, Write};
+use std::io::{Error, ErrorKind, IoSlice, Seek, SeekFrom, Write};
 use std::mem::MaybeUninit;
-use std::{io, ptr};
+use std::{fmt, io, ptr};
 
 /// Wraps a writer and buffers its output.
 ///
@@ -20,7 +20,7 @@ use std::{io, ptr};
 /// }
 /// stream.flush().unwrap();
 /// ```
-pub struct StackBufWriter<W: Write, const N: usize> {
+pub struct StackBufWriter<W: ?Sized + Write, const N: usize> {
     buf: [MaybeUninit<u8>; N],
     pos: usize,
     panicked: bool,
@@ -28,7 +28,6 @@ pub struct StackBufWriter<W: Write, const N: usize> {
 }
 
 impl<W: Write, const N: usize> StackBufWriter<W, N> {
-
     /// Creates a new `StackBufWriter<W, N>`.
     ///
     /// # Examples
@@ -47,7 +46,9 @@ impl<W: Write, const N: usize> StackBufWriter<W, N> {
             writer
         }
     }
+}
 
+impl<W: ?Sized + Write, const N: usize> StackBufWriter<W, N> {
     /// Send data in our local buffer into the inner writer, looping as
     /// necessary until either it's all been sent or an error occurs.
     ///
@@ -59,12 +60,12 @@ impl<W: Write, const N: usize> StackBufWriter<W, N> {
         /// Helper struct to ensure the buffer is updated after all the writes
         /// are complete. It tracks the number of written bytes and drains them
         /// all from the front of the buffer when dropped.
-        struct BufGuard<'a, W: Write, const N: usize> {
+        struct BufGuard<'a, W: ?Sized + Write, const N: usize> {
             owner: &'a mut StackBufWriter<W, N>,
             written: usize,
         }
 
-        impl<'a, W: Write, const N: usize> BufGuard<'a, W, N> {
+        impl<'a, W: ?Sized + Write, const N: usize> BufGuard<'a, W, N> {
             fn new(owner: &'a mut StackBufWriter<W, N>) -> Self {
                 Self { owner, written: 0 }
             }
@@ -89,7 +90,7 @@ impl<W: Write, const N: usize> StackBufWriter<W, N> {
             }
         }
 
-        impl<'a, W: Write, const N: usize> Drop for BufGuard<'a, W, N> {
+        impl<'a, W: ?Sized + Write, const N: usize> Drop for BufGuard<'a, W, N> {
             fn drop(&mut self) {
                 self.owner.pos = 0;
             }
@@ -282,7 +283,7 @@ impl<W: Write, const N: usize> StackBufWriter<W, N> {
     }
 }
 
-impl<W: Write, const N: usize> Write for StackBufWriter<W, N> {
+impl<W: ?Sized + Write, const N: usize> Write for StackBufWriter<W, N> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         // Use < instead of <= to avoid a needless trip through the buffer in some cases.
@@ -406,6 +407,37 @@ impl<W: Write, const N: usize> Write for StackBufWriter<W, N> {
             Ok(())
         } else {
             self.write_all_cold(buf)
+        }
+    }
+}
+
+impl<W: ?Sized + Write, const N: usize> fmt::Debug for StackBufWriter<W, N>
+where
+    W: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("BufWriter")
+            .field("writer", &&self.writer)
+            .field("buffer", &format_args!("{}/{}", self.pos, self.buf.len()))
+            .finish()
+    }
+}
+
+impl<W: ?Sized + Write + Seek, const N: usize> Seek for StackBufWriter<W, N> {
+    /// Seek to the offset, in bytes, in the underlying writer.
+    ///
+    /// Seeking always writes out the internal buffer before seeking.
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.flush_buf()?;
+        self.get_mut().seek(pos)
+    }
+}
+
+impl<W: ?Sized + Write, const N: usize> Drop for StackBufWriter<W, N> {
+    fn drop(&mut self) {
+        if !self.panicked {
+            // dtors should not panic, so we ignore a failed flush
+            let _r = self.flush_buf();
         }
     }
 }

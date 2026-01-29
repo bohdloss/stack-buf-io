@@ -23,7 +23,7 @@ use std::{cmp, fmt, io, ptr};
 ///     Ok(())
 /// }
 /// ```
-pub struct StackBufReader<R: Read, const N: usize = 4096> {
+pub struct StackBufReader<R: ?Sized + Read, const N: usize = 4096> {
     buf: [MaybeUninit<u8>; N],
     pos: usize,
     filled: usize,
@@ -58,7 +58,7 @@ impl<R: Read, const N: usize> StackBufReader<R, N> {
     }
 }
 
-impl<R: Read, const N: usize> StackBufReader<R, N> {
+impl<R: ?Sized + Read, const N: usize> StackBufReader<R, N> {
     /// Gets a reference to the underlying reader.
     ///
     /// It is inadvisable to directly read from the underlying reader.
@@ -219,7 +219,7 @@ impl<R: Read, const N: usize> StackBufReader<R, N> {
     }
 }
 
-impl<R: Read, const N: usize> StackBufReader<R, N> {
+impl<R: ?Sized + Read, const N: usize> StackBufReader<R, N> {
     #[inline]
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         // If we've reached the end of our internal buffer then we need to fetch
@@ -246,7 +246,7 @@ impl<R: Read, const N: usize> StackBufReader<R, N> {
     }
 }
 
-impl<R: Read, const N: usize> Read for StackBufReader<R, N> {
+impl<R: ?Sized + Read, const N: usize> Read for StackBufReader<R, N> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         // If we don't have any buffered data and we're doing a massive read
@@ -334,7 +334,7 @@ impl<R: Read, const N: usize> Read for StackBufReader<R, N> {
     }
 }
 
-impl<R: Read, const N: usize> BufRead for StackBufReader<R, N> {
+impl<R: ?Sized + Read, const N: usize> BufRead for StackBufReader<R, N> {
     #[inline]
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         self.fill_buf()
@@ -346,7 +346,7 @@ impl<R: Read, const N: usize> BufRead for StackBufReader<R, N> {
     }
 }
 
-impl<R: Read + fmt::Debug, const N: usize> fmt::Debug for StackBufReader<R, N>
+impl<R: ?Sized + Read + fmt::Debug, const N: usize> fmt::Debug for StackBufReader<R, N>
 {
     #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -360,7 +360,7 @@ impl<R: Read + fmt::Debug, const N: usize> fmt::Debug for StackBufReader<R, N>
     }
 }
 
-impl<R: Read + Seek, const N: usize> Seek for StackBufReader<R, N> {
+impl<R: ?Sized + Read + Seek, const N: usize> Seek for StackBufReader<R, N> {
     /// Seek to an offset, in bytes, in the underlying reader.
     ///
     /// The position used for seeking with <code>[SeekFrom::Current]\(_)</code> is the
