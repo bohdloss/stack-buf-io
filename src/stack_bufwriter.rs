@@ -13,7 +13,7 @@ use std::{fmt, io, ptr};
 /// use std::net::TcpStream;
 /// use stack_buf_io::StackBufWriter;
 ///
-/// let mut stream = StackBufWriter::<4096, _>::new(TcpStream::connect("127.0.0.1:34254").unwrap());
+/// let mut stream = StackBufWriter::<_, 4096>::new(TcpStream::connect("127.0.0.1:34254").unwrap());
 ///
 /// for i in 0..10 {
 ///     stream.write(&[i+1]).unwrap();
@@ -416,7 +416,7 @@ where
     W: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("BufWriter")
+        fmt.debug_struct("StackBufWriter")
             .field("writer", &&self.writer)
             .field("buffer", &format_args!("{}/{}", self.pos, self.buf.len()))
             .finish()

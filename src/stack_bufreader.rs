@@ -350,7 +350,7 @@ impl<R: ?Sized + Read + fmt::Debug, const N: usize> fmt::Debug for StackBufReade
 {
     #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("BufReader")
+        fmt.debug_struct("StackBufReader")
             .field("reader", &&self.reader)
             .field(
                 "buffer",
